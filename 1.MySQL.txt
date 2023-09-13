@@ -1,0 +1,132 @@
+1.旧版本的masql。（mariadb）是mysql开源的一个分支
+ps ajx | grep mariadb  # 先检查是否有mariadb存在
+ps ajx | grep mysql
+
+systemctl stop mariadb.service # 停⽌mariadb 服务 （ROOT下）
+
+ps axj |grep mariadb(mysql)  # 停⽌完成
+
+
+2. 检查系统安装包
+rpm -qa | grep mariadb(mysql)
+
+3. 卸载默认安装包
+rpm -qa | grep mysql | xargs yum -y remove （会自动拼接在此）
+
+4.获取mysql官方yum 源
+http://repo.mysql.com/
+
+# cat /etc/redhat-release 查看自己的版本，安装相对于的版本
+
+到官网后，右键，检查网页源代码
+-el 就是CentOS， 下载对应的版本
+下载好后，传输到Linux 服务器中
+
+5.安装mysql yum 源，对⽐前后yum源
+ls /etc/yum.repos.d/ -al #查看服务器中的yum源
+rpm -ivh mysql...rpm  安装mysql对应的yum源
+
+6.看看能不能正常⼯作
+yum list |grep mysql #在看看能不能正常⼯作
+
+7.安装mysql服务
+sudo yum install -y mysql-community-server
+会安装 相关功能、库、...
+
+Failing package is: mysql-community-common-5.7.43-1.el7.x86_64
+GPG Keys are configured as: file:///etc/pki/rpm-gpg/RPM-GPG-KEY-mysql
+密钥过期  报错，解决方法：
+rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022  （导入较新的密钥）
+
+安装好之后验证
+首先要有 /etc/my.cnf
+其次 which mysqld （mysql的服务端）
+    which mysql
+
+启动mysqld
+systemctl start mysqld
+查询
+ps ajx | grep mysqld
+就能看到有一个mysql在运行 /user/sbin/mysqld
+netstat -nltp
+也能看到，有mysql 的 3306 端口在运行
+
+
+[root@sec MySQL]# mysql -uroot -p
+Enter password: 
+ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+发现登录不上，之后处理
+
+
+登陆⽅法⼀：
+#获取临时root密码
+sudo grep 'temporary password' /var/log/mysqld.log
+
+qj7ukg#qGcJm
+使用临时密码登录：
+mysql -uroot -p
+
+#判断修改密码时候新密码是否符合当前的策略，不满⾜报错，不让修改，关闭它
+#安全强度，默认为中，即1，要求必须包含 数字、符号、⼤⼩写字⺟，⻓度⾄少为8位
+
+mysql> set global validate_password_policy=0;
+Query OK, 0 rows affected (0.00 sec)
+#密码最⼩⻓度
+mysql> set global validate_password_length=1;
+Query OK, 0 rows affected (0.00 sec)
+#修改本地登录密码，暂不授权远程登录
+mysql> ALTER USER 'root'@'localhost' IDENTIFIED BY 'qwer@wu.888';
+Query OK, 0 rows affected (0.00 sec)
+mysql> FLUSH PRIVILEGES;
+Query OK, 0 rows affected (0.00 sec)
+
+ 
+
+登陆⽅法二：
+# 如果你安装的最新的mysql，没有所谓的临时密码，root默认没有密码
+# 试着直接client登陆⼀下
+
+
+登陆⽅式三【应该⾏了吧】
+[root@bite-alicloud mysql]# vim /etc/my.cnf # 打开mysql配置⽂件
+在[mysqld]最后⼀栏配置(不知道是什么，就放在配置⽂件最后) 加⼊: skip-grant-tables 选项,
+并保存退出
+[root@bite-alicloud mysql]# systemctl restart mysqld # 重启mysql服务
+# 登陆成功
+[root@bite-alicloud mysql]# mysql -uroot
+输入密码时候直接回车
+Welcome to the MySQL monitor. Commands end with ; or \g.
+Your MySQL connection id is 2
+Server version: 5.7.41 MySQL Community Server (GPL)
+Copyright (c) 2000, 2023, Oracle and/or its affiliates.
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+
+配置my.cnf
+#配置⼀下my.conf,主要是数据库客⼾端和服务器的编码格式
+
+[mysql] // 要有这个
+#default-character-set=utf8 ，暂不设置，mysql有bug，汉字不回显
+
+
+port=3306 // mysql也是一种网络服务，有对应的端口号，可以对其修改（一般公司里会改）
+datadir=/var/lib/mysql  // 未来mysql 建表建库 对应的数据就在这里
+socket=/var/lib/mysql/mysql.sock
+
+再加两个：
+character-set-server=utf8   server端的编码格式=utf8
+default-storage-engine=innodb    mysql后端用的存储引擎默认是innodb
+
+// 改了端口号，之后，客户端和服务端是同一个台机器，同一个配置文件就可以访问
+// 但是呢，之前的客户端，默认3306 访问就访问不到了
+
+
+#开启开机⾃启动
+systemctl enable mysqld
+systemctl daemon-reload
+
+env | grep LANG 
+查看编码
+
